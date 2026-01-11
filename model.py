@@ -643,8 +643,14 @@ class FunASRNano(nn.Module):
             inputs_embeds = inputs_embeds.to(dtype_map[llm_dtype])
             llm_kwargs = kwargs.get("llm_kwargs", {})
             if not kwargs.get("teachforing", False):
+                attention_mask = batch.get("attention_mask", None)
+                if attention_mask is not None:
+                    attention_mask = attention_mask.to(self.llm.device)
+                
                 generated_ids = self.llm.generate(
                     inputs_embeds=inputs_embeds,
+                    attention_mask=attention_mask,
+                    pad_token_id=tokenizer.eos_token_id,
                     max_new_tokens=kwargs.get("max_length", 512),
                     **llm_kwargs,
                 )
