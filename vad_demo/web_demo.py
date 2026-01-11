@@ -509,7 +509,7 @@ def asr_worker(audio_queue):
             tensor = torch.from_numpy(audio_data).unsqueeze(0)
             torchaudio.save(tmp_name, tensor, RATE)
 
-            result = model.generate(tmp_name)
+            result = model.generate(tmp_name, max_length=50)
             text = result.text
             
             # Clean up
