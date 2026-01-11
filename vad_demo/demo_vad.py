@@ -96,6 +96,8 @@ class AudioStream:
         speech_buffer = []
         silence_counter = 0
         is_speech_active = False
+        speech_chunks_since_update = 0
+        BATCH_SIZE = 60
         
         chunks_per_sec = RATE / CHUNKSZ
         silence_chunks_thresh = int(SILENCE_DURATION_MS * chunks_per_sec / 1000)
@@ -119,16 +121,19 @@ class AudioStream:
                     
                     silence_counter = 0
                     speech_buffer.append(audio_int16)
+                    speech_chunks_since_update += 1
                     
-                    # Send updated full buffer for "Real-time" update
-                    full_audio = np.concatenate(speech_buffer)
-                    self.queue_out.put(("partial", full_audio))
+                    if speech_chunks_since_update >= BATCH_SIZE:
+                        full_audio = np.concatenate(speech_buffer)
+                        self.queue_out.put(("partial", full_audio))
+                        speech_chunks_since_update = 0
                     
                 else:
                     # Silence
                     if is_speech_active:
                         speech_buffer.append(audio_int16) # Keep adding trailing silence
                         silence_counter += 1
+                        speech_chunks_since_update += 1
                         
                         if silence_counter >= silence_chunks_thresh:
                             # Finalize sentence
@@ -143,9 +148,11 @@ class AudioStream:
                             
                             speech_buffer = []
                             silence_counter = 0
-                        else:
+                            speech_chunks_since_update = 0
+                        elif speech_chunks_since_update >= BATCH_SIZE:
                             full_audio = np.concatenate(speech_buffer)
                             self.queue_out.put(("partial", full_audio))
+                            speech_chunks_since_update = 0
             except Exception as e:
                 print(f"Error in process loop: {e}")
                 break
