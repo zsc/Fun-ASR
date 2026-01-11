@@ -104,7 +104,10 @@ html = """
                 </div>
                 
                 <div class="box">
-                    <div class="box-header">History</div>
+                    <div class="box-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        History
+                        <button onclick="copyHistory()" style="padding: 4px 8px; font-size: 0.8em; cursor: pointer;">Copy JSON</button>
+                    </div>
                     <div id="final-results"></div>
                 </div>
             </div>
@@ -125,6 +128,18 @@ html = """
             const partialSpan = document.getElementById("partial");
             const finalResultsDiv = document.getElementById("final-results");
             const statusDiv = document.getElementById("status");
+            
+            // History Data
+            let historyData = [];
+
+            function copyHistory() {
+                const jsonStr = JSON.stringify(historyData, null, 2);
+                navigator.clipboard.writeText(jsonStr).then(() => {
+                    alert("History copied to clipboard!");
+                }).catch(err => {
+                    console.error("Failed to copy text: ", err);
+                });
+            }
 
             ws.onopen = () => {
                 statusDiv.innerText = "Connected to Server";
@@ -165,10 +180,15 @@ html = """
             };
             
             function addFinalResult(text) {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString();
+                
+                historyData.push({timestamp: now.toISOString(), text: text});
+                
                 const div = document.createElement("div");
                 div.className = "sentence";
                 div.innerHTML = `
-                    <span class="timestamp">${new Date().toLocaleTimeString()}</span>
+                    <span class="timestamp">${timeStr}</span>
                     <span class="text">${text}</span>
                 `;
                 finalResultsDiv.appendChild(div);
@@ -270,6 +290,7 @@ html = """
 
 # Global Queue for ASR Thread -> WebSocket
 msg_queue = queue.Queue()
+asr_ready_event = threading.Event()
 
 class ConnectionManager:
     def __init__(self):
@@ -477,6 +498,7 @@ def asr_worker(audio_queue):
         hub="ms"
     )
     print("ASR Model Loaded.")
+    asr_ready_event.set()
 
     while True:
         try:
@@ -548,4 +570,8 @@ def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
+    # Wait for ASR model to load before starting server
+    print("Waiting for ASR model to initialize...")
+    asr_ready_event.wait()
+    print("ASR Ready. Starting Server...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
